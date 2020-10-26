@@ -18,9 +18,9 @@ void Debugger::update()
 
     if (ImGui::GetTime() > nxtTime) {
         fps = ImGui::GetIO().Framerate;
-        cpuTotal = System::cpuUsageProcess();
+        cpuTotal = mahi::util::cpu_usage_process();
         cpuSession = gui.device.session ? gui.device.session->getCpuLoad() : 0;
-        ram = System::ramUsedProcess();
+        ram = mahi::util::ram_used_process();
         nxtTime += 1.0;
     }
 
@@ -31,6 +31,9 @@ void Debugger::update()
         ImGui::Text("Signal Count:        ");
         ImGui::SameLine();
         ImGui::Text("%d", tact::Signal::count());
+        ImGui::Text("Max Voices:          ");
+        ImGui::SameLine();
+        ImGui::Text("%d", SYNTACTS_MAX_VOICES);
 #ifdef SYNTACTS_USE_POOL
         ImGui::Text("Pool Capacity:       ");
         ImGui::SameLine();
@@ -56,11 +59,11 @@ void Debugger::update()
         ImGui::Text("Library Directory:   ");
         ImGui::SameLine();        
         if (ImGui::TintedButton(tact::Library::getLibraryDirectory().c_str(), {0,0,0,0}))
-            System::openFolder(tact::Library::getLibraryDirectory());
+            mahi::gui::open_folder(tact::Library::getLibraryDirectory());
         ImGui::Text("GUI Directory:       ");
         ImGui::SameLine();        
         if (ImGui::TintedButton(gui.saveDir().c_str(), {0,0,0,0}))
-            System::openFolder(gui.saveDir());
+            mahi::gui::open_folder(gui.saveDir());
 
         ImGui::Separator();
 
@@ -72,12 +75,12 @@ void Debugger::update()
         ImGui::Text("%d / %d", ImGui::GetIO().MetricsRenderVertices, ImGui::GetIO().MetricsRenderIndices / 3);
         ImGui::Text("RAM Usage:           "); 
         ImGui::SameLine(); ImGui::Text("%d MB", ram / 1000000);
-        ImGui::Text("CPU Load:            "); ImGui::SameLine(); ImGui::Text("%.2f %%", cpuTotal * 100);
+        ImGui::Text("CPU Load:            "); ImGui::SameLine(); ImGui::Text("%.2f %%", cpuTotal);
         ImGui::Text("Session Load:        "); ImGui::SameLine(); ImGui::Text("%.2f %%", cpuSession * 100);        
         ImGui::Separator();
         ImGui::Text("Operating System:    ");
         ImGui::SameLine();
-        ImGui::Text("%s %s", System::osName().c_str(), System::osVersion().c_str());
+        ImGui::Text("%s %s", mahi::util::os_name().c_str(), mahi::util::os_version().c_str());
         ImGui::Text("Syntacts Version:    ");
         ImGui::SameLine();
         ImGui::Text(tact::syntactsVersion().c_str());
@@ -100,7 +103,7 @@ void Debugger::update()
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, Reds::Salmon);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, Reds::LightSalmon);
         if (ImGui::Button("Report Issue", {-1, 0}))
-            System::openUrl("https://github.com/mahilab/Syntacts/issues");
+            mahi::gui::open_url("https://github.com/mahilab/Syntacts/issues");
         ImGui::PopStyleColor(3);
         ImGui::End();
     }

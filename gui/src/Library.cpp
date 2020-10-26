@@ -21,7 +21,7 @@ Library::Library(Gui& gui) : Widget(gui),
                              palette(gui)
 {
     init();
-    gui.onFileDrop.connect(this, &Library::onFileDrop);
+    gui.on_file_drop.connect(this, &Library::onFileDrop);
 }
 
 tact::Signal Library::getSelectedSignal()
@@ -111,22 +111,20 @@ void Library::init()
     // set selected entry
     if (m_lib.size() > 0)
         m_selected = m_lib.begin()->first;
-
  
     /// start FileWatcher
     auto tf = [&]() { m_watcher.start(memberBind(this,&Library::onFileChange)); };
     std::thread t(tf);
     t.detach();
-
-    // connect onFileDrop to carnot
-    // Engine::onFileDrop.connect(this, &Library::onFileDrop);
 }
 
 void Library::update()
 {
     bool dummy = true;
     std::lock_guard<std::mutex> lock(m_mtx);
-    ImGui::BeginFixed("Library", position, size);
+    ImGui::BeginFixed("Library", position, size, ImGuiWindowFlags_NoTitleBar);
+    m_focused = false;
+
     if (ImGui::BeginTabBar("LibraryWindowTabs"))
     {
         if (ImGui::BeginTabItem(" Palette ##Tab"))
@@ -145,26 +143,13 @@ void Library::update()
         }
         if (ImGui::BeginTabItem(" Library ##Tab"))
         {
+            m_focused = true; // ImGui::IsWindowFocused();
+
             ImGui::BeginGroup();
             renderCreateDialog();
             ImGui::Separator();
             renderLibraryList();
-            if (ImGui::BeginPopupContextItem("##ContextMenu")){
-                ImGui::PushStyleColor(ImGuiCol_Button, {0,0,0,0});
-#ifdef _WIN32
-                if (ImGui::Button("Reveal in Explorer")) 
-#elif __APPLE__
-                if (ImGui::Button("Reveal in Finder")) 
-#else
-                if (ImGui::Button("Reveal in File Browser"))
-#endif
-                {
-                    System::openFolder(tact::Library::getLibraryDirectory());
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::PopStyleColor();
-                ImGui::EndPopup();
-            }
+
             ImGui::Separator();
             renderLibraryControls();
             ImGui::EndGroup();
@@ -175,6 +160,8 @@ void Library::update()
                 ImGui::BulletText("Signals are saved to the global Syntacts Library");
                 ImGui::BulletText("Hover over a Library Signal for a preview or right-click it for additional controls");
                 ImGui::BulletText("Use the buttons at the bottom to save, delete, and export Signals to different file formats");
+                ImGui::BulletText("Right click items for more options");
+                ImGui::BulletText("Drag files from your computer onto the GUI window to add them to the Library");
                 ImGui::EndPopup();
             }
             ImGui::EndTabItem();
@@ -220,7 +207,7 @@ void Library::renderCreateDialog()
         }
     }
     gui.status.showTooltip("Create new Signal");
-    ImGui::EndDisabled(!valid);
+    ImGui::EndDisabled();
 }
 
 void Library::renderLibraryList()
@@ -228,11 +215,13 @@ void Library::renderLibraryList()
     auto avail = ImGui::GetContentRegionAvail();
     ImGui::PushStyleColor(ImGuiCol_ChildBg, {0,0,0,0});
     ImGui::BeginChild("LibraryList", ImVec2(0, avail.y - 29));
+    m_focused = m_focused || ImGui::IsWindowFocused();
     for (auto &pair : m_lib)
     {
         Entry &entry = pair.second;
-        if (ImGui::Selectable(entry.name.c_str(), m_selected == entry.name))
+        if (ImGui::Selectable(entry.name.c_str(), m_selected == entry.name)) {
             m_selected = entry.name;
+        }
         if (ImGui::IsItemHovered()) {            
             if (!entry.loaded) {            
                if (tact::Library::loadSignal(entry.disk, entry.name))
@@ -241,8 +230,58 @@ void Library::renderLibraryList()
             gui.visualizer.setRenderedSignal(entry.disk, Blues::DeepSkyBlue);
         }
         SignalSource(entry.name, entry.disk);
-
+        if (ImGui::BeginPopupContextItem(entry.name.c_str())){
+            if (ImGui::Selectable("Edit")) {
+                gui.workspace.designer.edit(entry.disk);
+                ImGui::CloseCurrentPopup();
+            }
+            if (ImGui::Selectable("Delete")) {
+                tact::Library::deleteSignal(entry.name);
+                ImGui::CloseCurrentPopup();
+            }
+            if (ImGui::BeginMenu("Export")) {
+                static std::string savePath;
+                if (ImGui::Selectable("SIG") && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay) {
+                    fs::path p = savePath + "/" + entry.name + ".sig";
+                    tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::SIG);
+                    gui.status.pushMessage("Exported Signal " + entry.name + " to " + p.generic_string());
+                    ImGui::CloseCurrentPopup();
+                }
+                if (ImGui::Selectable("WAV") && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay) {
+                    fs::path p = savePath + "/" + entry.name + ".wav";
+                    tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::WAV);
+                    gui.status.pushMessage("Exported Signal " + entry.name + " to " + p.generic_string());
+                    ImGui::CloseCurrentPopup();
+                }
+                if (ImGui::Selectable("CSV") && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay) {
+                    fs::path p = savePath + "/" + entry.name + ".csv";
+                    tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::CSV);
+                    gui.status.pushMessage("Exported Signal " + entry.name + " to " + p.generic_string());
+                    ImGui::CloseCurrentPopup();
+                }
+                if (ImGui::Selectable("JSON") && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay) {
+                    fs::path p = savePath + "/" + entry.name + ".json";
+                    tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::JSON);
+                    gui.status.pushMessage("Exported Signal " + entry.name + " to " + p.generic_string());
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndMenu();
+            }
+             #ifdef _WIN32
+            if (ImGui::Selectable("Reveal in Explorer")) 
+            #elif __APPLE__
+            if (ImGui::Selectable("Reveal in Finder")) 
+            #else
+            if (ImGui::Selectable("Reveal in File Browser"))
+            #endif
+            {
+                mahi::gui::open_folder(tact::Library::getLibraryDirectory());
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
     }
+
     ImGui::EndChild();
     ImGui::PopStyleColor();
 }
@@ -254,7 +293,7 @@ void Library::renderLibraryControls()
 
     // SAVE
     float buttonWidth = (ImGui::GetContentRegionAvailWidth() - 5 * ImGui::GetStyle().ItemSpacing.x) / 6;    
-    if (ImGui::Button(ICON_FA_SAVE, ImVec2(buttonWidth, 0)))
+    if (ImGui::Button(ICON_FA_SAVE, ImVec2(buttonWidth, 0)) || (m_focused && ImGui::IsKeyPressed(GLFW_KEY_S, false) && ImGui::GetIO().KeyCtrl))
     {
         tact::Signal sig;
         if (gui.workspace.activeTab == Workspace::TabSequencer)
@@ -290,10 +329,11 @@ void Library::renderLibraryControls()
     }
     gui.status.showTooltip("Delete Selected Signal");
 
+
     // EXPORT
     ImGui::SameLine();
     static std::string savePath;
-    if (ImGui::Button(ICON_FA_FILE_EXPORT, ImVec2(buttonWidth, 0)) && System::pickFolder("",savePath) == System::Okay)
+    if (ImGui::Button(ICON_FA_FILE_EXPORT, ImVec2(buttonWidth, 0)) && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay)
     {
         fs::path p = savePath + "/" + m_selected + ".sig";
         tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::SIG);
@@ -301,7 +341,7 @@ void Library::renderLibraryControls()
     }
     gui.status.showTooltip("Export Selected Signal");
     ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_MUSIC, ImVec2(buttonWidth, 0)) && System::pickFolder("",savePath) == System::Okay)
+    if (ImGui::Button(ICON_FA_MUSIC, ImVec2(buttonWidth, 0)) && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay)
     {
         fs::path p = savePath + "/" + m_selected + ".wav";
         tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::WAV);
@@ -309,22 +349,22 @@ void Library::renderLibraryControls()
     }
     gui.status.showTooltip("Export Selected Signal as WAV");
     ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_TABLE, ImVec2(buttonWidth, 0)) && System::pickFolder("",savePath) == System::Okay)
+    if (ImGui::Button(ICON_FA_TABLE, ImVec2(buttonWidth, 0)) && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay)
     {
         fs::path p = savePath + "/" + m_selected + ".csv";
         tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::CSV);
-        gui.status.pushMessage("Exported Signal " + m_selected + " to " + p.generic_string() + ".csv");
+        gui.status.pushMessage("Exported Signal " + m_selected + " to " + p.generic_string());
     }
     gui.status.showTooltip("Export Selected Signal as CSV");
 
     ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_CODE, ImVec2(buttonWidth, 0)) && System::pickFolder("",savePath) == System::Okay)
+    if (ImGui::Button(ICON_FA_CODE, ImVec2(buttonWidth, 0)) && mahi::gui::pick_dialog(savePath) == DialogResult::DialogOkay)
     {
         fs::path p = savePath + "/" + m_selected + ".json";
         tact::Library::exportSignal(getSelectedSignal(), p.generic_string(), tact::FileFormat::JSON);
-        gui.status.pushMessage("Exported Signal " + m_selected + " to " + p.generic_string() + ".json");
+        gui.status.pushMessage("Exported Signal " + m_selected + " to " + p.generic_string());
     }
     gui.status.showTooltip("Export Selected Signal as JSON");
 
-    ImGui::EndDisabled(disabled);
+    ImGui::EndDisabled();
 }

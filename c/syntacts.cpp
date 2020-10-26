@@ -1,4 +1,4 @@
-#include "syntacts-c.hpp"
+#include "syntacts.h"
 #include <syntacts>
 #include <unordered_map>
 #include <iostream>
@@ -6,7 +6,7 @@
 using namespace tact;
 
 std::unordered_map<Handle, Signal> g_sigs;
-std::unordered_map<Handle, std::unique_ptr<Session>> g_sessions; // exposes "issues" that need to be investigated
+std::unordered_map<Handle, std::unique_ptr<Session>> g_sessions;
 std::unordered_map<Handle, std::unique_ptr<Spatializer>> g_spats;
 
 struct Finalizer {
@@ -48,6 +48,10 @@ bool Syntacts_asioSupport() {
 #else
     return false;
 #endif
+}
+
+int Syntacts_maxVoices() {
+    return SYNTACTS_MAX_VOICES;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -151,6 +155,10 @@ int Session_setPitch(Handle session, int channel, double pitch) {
 
 double Session_getPitch(Handle session, int channel) {
     return static_cast<Session*>(session)->getPitch(channel);
+}
+
+double Session_getLevel(Handle session, int channel) {
+    return static_cast<Session*>(session)->getLevel(channel);
 }
 
 int Session_getChannelCount(Handle session) {
@@ -269,7 +277,7 @@ void Spatializer_delete(Handle spat) {
     g_spats.erase(spat);
 }
 
-EXPORT bool Spatializer_valid(Handle spat) {
+bool Spatializer_valid(Handle spat) {
     return g_spats.count(spat) > 0;
 }
 
@@ -281,22 +289,24 @@ void Spatializer_unbind(Handle spat) {
     static_cast<Spatializer*>(spat)->unbind();
 }
 
-void Spatializer_setPosition(Handle spat, int channel, Point p) {
-    static_cast<Spatializer*>(spat)->setPosition(channel, {p.x, p.y});
+void Spatializer_setPosition(Handle spat, int channel, double x, double y) {
+    static_cast<Spatializer*>(spat)->setPosition(channel, x, y);
 }
 
-Point Spatializer_getPosition(Handle spat, int channel) {
+void Spatializer_getPosition(Handle spat, int channel, double* x, double* y) {
     auto p = static_cast<Spatializer*>(spat)->getPosition(channel);
-    return {p.x, p.y};
+    *x = p.x;
+    *y = p.y;
 }
 
-void Spatializer_setTarget(Handle spat, Point p) {
-    static_cast<Spatializer*>(spat)->setTarget({p.x, p.y});
+void Spatializer_setTarget(Handle spat, double x, double y) {
+    static_cast<Spatializer*>(spat)->setTarget(x,y);
 }
 
-Point Spatializer_getTarget(Handle spat) {
+void Spatializer_getTarget(Handle spat, double* x, double* y) {
     auto p = static_cast<Spatializer*>(spat)->getTarget();
-    return {p.x, p.y};
+    *x = p.x;
+    *y = p.y;
 }
 
 void Spatializer_setRadius(Handle spat, double r) {
@@ -308,7 +318,7 @@ double Spatializer_getRadius(Handle spat) {
 }
 
 // 0 = lin, 1 = smooth, 2 = smoother, 3 = smoothest, 4 = log, 5 = exp
-EXPORT void Spatializer_setRollOff(Handle spat, int type) {
+void Spatializer_setRollOff(Handle spat, int type) {
     auto sp = static_cast<Spatializer*>(spat);
     switch (type) {
         case 0: sp->setRollOff(Curves::Linear()); break;
@@ -320,6 +330,37 @@ EXPORT void Spatializer_setRollOff(Handle spat, int type) {
         default: sp->setRollOff(Curves::Linear()); break;
     }
 } 
+
+int Spatializer_getRollOff(Handle spat) {
+    auto sp = static_cast<Spatializer*>(spat);
+    auto cv = sp->getRollOff();
+    // TODO: make this not bad
+    if (cv.name() == "Linear")
+        return 0;
+    if (cv.name() == "Smoothstep")
+        return 1;
+    if (cv.name() == "Smootherstep")
+        return 2;
+    if (cv.name() == "Smootheststep")
+        return 3;
+    if (cv.name() == "Exponential::In")
+        return 4;
+    if (cv.name() == "Exponential::Out")
+        return 5;
+    return -1;    
+}
+
+void Spatializer_setWrap(Handle spat, double x, double y) {
+    auto sp = static_cast<Spatializer*>(spat);
+    sp->setWrap(x,y);
+}
+
+void Spatializer_getWrap(Handle spat, double* x, double* y) {
+    auto sp = static_cast<Spatializer*>(spat);
+    auto wr = sp->getWrap();
+    *x = wr.x;
+    *y = wr.y;
+}
 
 bool Spatializer_createGrid(Handle spat, int rows, int cols) {
     return static_cast<Spatializer*>(spat)->createGrid(rows,cols);
@@ -591,6 +632,14 @@ Handle ASR_create(double a, double s, double r, double amp) {
 
 Handle ADSR_create(double a, double d, double s, double r, double amp1, double amp2) {
     return store(ADSR(a,d,s,r, amp1, amp2));
+}
+
+Handle ExponentialDecay_create(double amplitude, double decay) {
+    return store(ExponentialDecay(amplitude, decay));
+}
+
+Handle SignalEnvelope_create(Handle signal, double duration, double amplitude) {
+    return store(SignalEnvelope(g_sigs.at(signal), duration, amplitude));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

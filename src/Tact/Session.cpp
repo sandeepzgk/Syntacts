@@ -12,6 +12,7 @@
 #include <fstream>
 #include <set>
 #include <numeric>
+#include <array>
 
 namespace tact {
 
@@ -24,31 +25,39 @@ namespace tact {
 
 namespace {
 
-constexpr int    QUEUE_SIZE        = 256;
+constexpr int    QUEUE_SIZE        = 1024;
 constexpr int    FRAMES_PER_BUFFER = 0;
 
-static std::vector<double> STANDARD_SAMPLE_RATES = {
-    8000.0, 9600.0, 11025.0, 12000.0, 16000.0, 22050.0, 24000.0, 32000.0,
-    44100.0, 48000.0, 88200.0, 96000.0, 192000.0
+static std::array<double,13> STANDARD_SAMPLE_RATES = {
+    8000, 9600, 11025, 12000, 16000, 22050, 24000, 32000,
+    44100, 48000, 88200, 96000, 192000
 };
 
 using namespace rigtorp;
 
-
+struct Voice {
+    Signal signal;
+    double time  = 0;
+    bool stopped = true;
+    inline double step(double dt) {
+        double s = signal.sample(time) * (!stopped);
+        time += dt;
+        return s;
+    }    
+};
 
 /// Channel structure
 class Channel {
 public:
-    Signal signal;
-    double time   = 0.0; 
-    double sampleLength = 0.0;
-    double  volume = 1.0f;
-    double  lastVolume = 1.0f;
-    double  pitch  = 1.0f;
-    double  lastPitch = 1.0f;
-    bool   paused = false;
-    bool   stopped = true;
-    
+    std::array<Voice,SYNTACTS_MAX_VOICES> voices;
+    Signal  signal;
+    double  sampleLength = 0.0;
+    double  volume       = 1.0;
+    double  pitch        = 1.0;
+    double  level        = 0.0;
+    bool    paused       = false;
+    bool    stopped      = true;
+   
     void fillBuffer(float* buffer, unsigned long frames) {
         // interp volume
         double nextVolume = volume;
@@ -60,28 +69,80 @@ public:
         pitch = lastPitch;
 
         if (paused || stopped) {
-            for (unsigned long f = 0; f < frames; ++f) 
+            for (unsigned long f = 0; f < frames; ++f) {
                 buffer[f] = 0;
+                level     = 0;
+            }
         }
         else {
             // fill buffer
+            double max_level = 0;
             for (unsigned long f = 0; f < frames; ++f) {
                 pitch += pitchIncr;
                 volume += volumeIncr;
-                buffer[f] = volume > 0 ? static_cast<float>( signal.sample(time) * volume ) : 0;
-                time += sampleLength * pitch;
+                double dt = sampleLength * pitch;
+                double output = stepVoices(dt) * volume;
+                double abs_out = std::abs(output);
+                max_level = abs_out > max_level ? abs_out : max_level;
+                buffer[f] = static_cast<float>(output);
             }
+            level = max_level; // sum_output / frames;
         }
-        if (time > signal.length()) {
-            // paused = true;
-            stopped = true;
-        }
-
+        stopped = activeVoices() == 0;
         volume     = nextVolume;
         lastVolume = nextVolume;
         pitch      = nextPitch;
         lastPitch  = nextPitch;
     }
+
+    inline void play(Signal sig) {
+        stopped = false;
+        paused = false;
+        for (auto& v : voices) {
+            if (v.stopped) {
+                v.signal = std::move(sig);
+                v.stopped = false;
+                v.time = 0;
+                return;
+            }
+        }
+        voices[0].signal  = std::move(sig);
+        voices[0].stopped = false;
+        voices[0].time    = 0;
+    }
+
+    inline void stop() {
+        for (auto& v : voices) {
+            v.stopped = true;
+            v.time   = 0;
+        }
+        paused = true;
+    }
+
+    inline double stepVoices(double dt) {
+        double sum = 0;
+        for (auto& v : voices)
+            sum += v.step(dt);
+        return sum;
+    }
+
+    inline int activeVoices() {
+        int count = 0;
+        for (auto& v : voices) {
+            if (v.time > v.signal.length()) {
+                v.stopped = true;
+                v.time    = 0;
+            }
+        }
+        for (auto& v : voices) {
+            if (!v.stopped)
+                count++;
+        }        
+        return count;
+    }
+private:
+    double  lastVolume   = 1.0;
+    double  lastPitch    = 1.0;
 };
 
 /// Interface for commands sent through command queue
@@ -106,20 +167,14 @@ struct Command {
 
 struct Play : public Command {
     virtual void performImpl(Channel& channel) override {
-        channel.paused = false;
-        channel.stopped = false;
-        channel.time   = 0;
-        channel.signal = std::move(signal);
+        channel.play(std::move(signal));
     }
     Signal signal;
 };
 
 struct Stop : public Command {
     virtual void performImpl(Channel& channel) override {
-        channel.paused  = true;
-        channel.stopped = true;
-        channel.time   = 0;
-        channel.signal = std::move(Signal());
+        channel.stop();
     }
 };
 
@@ -156,6 +211,13 @@ struct GetPitch : public Command {
         pitch = channel.pitch;
     }
     double pitch;
+};
+
+struct GetLevel : public Command {
+    virtual void performImpl(Channel& channel) override {
+        level = channel.level;
+    }
+    double level;
 };
 
 } // private namespace
@@ -274,11 +336,11 @@ public:
     }
 
     bool isPlaying(int channel) {
-        return !m_channels[channel].paused && !m_channels[channel].stopped; // this *should* be thread safe, TBD
+        return !m_channels[channel].paused && !m_channels[channel].stopped; 
     }
 
     bool isPaused(int channel) {
-        return m_channels[channel].paused; // this *should* be thread safe, TBD
+        return m_channels[channel].paused; 
     }
 
     int play(int channel, Signal signal) {
@@ -331,10 +393,17 @@ public:
 
     double getVolume(int channel) {
         if (!isOpen())
-            return SyntactsError_NotOpen;
+            return 0;
         if (!(channel < m_channels.size()))
-            return SyntactsError_InvalidChannel;
-        return m_channels[channel].volume; // this *should* be thread safe, TBD
+            return 0;
+        if constexpr (std::atomic<double>::is_always_lock_free) 
+            return m_channels[channel].volume; // this *should* be thread safe, TBD
+        else {
+            auto command = std::make_shared<GetVolume>();
+            bool success = m_commands.try_push(std::move(command));
+            assert(success);
+            return command->volume;
+        } 
     }
 
     int setPitch(int channel, double pitch) {
@@ -352,10 +421,32 @@ public:
 
     double getPitch(int channel) {
         if (!isOpen())
-            return SyntactsError_NotOpen;
+            return 1;
         if (!(channel < m_channels.size()))
-            return SyntactsError_InvalidChannel;
-        return m_channels[channel].pitch; // this *should* be thread safe, TBD
+            return 1;
+        if constexpr (std::atomic<double>::is_always_lock_free) 
+            return m_channels[channel].pitch;
+        else {
+            auto command = std::make_shared<GetPitch>();
+            bool success = m_commands.try_push(std::move(command));
+            assert(success);
+            return command->pitch;
+        } 
+    }
+
+    double getLevel(int channel) {
+        if (!isOpen())
+            return 0;
+        if (!(channel < m_channels.size()))
+            return 0;
+        if constexpr (std::atomic<double>::is_always_lock_free) 
+            return m_channels[channel].level;
+        else {        
+            auto command = std::make_shared<GetLevel>();
+            bool success = m_commands.try_push(std::move(command));
+            assert(success);
+            return command->level;
+        }
     }
 
     const Device& getCurrentDevice() const {
@@ -659,6 +750,10 @@ int Session::setPitch(int channel, double pitch) {
 
 double Session::getPitch(int channel) {
     return m_impl->getPitch(channel);
+}
+
+double Session::getLevel(int channel) {
+    return m_impl->getLevel(channel);
 }
 
 const Device& Session::getCurrentDevice() const {

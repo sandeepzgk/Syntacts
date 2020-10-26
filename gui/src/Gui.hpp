@@ -1,5 +1,6 @@
 #pragma once
-#include <mahi/gui.hpp>
+#include <Mahi/Gui.hpp>
+#include <Mahi/Util.hpp>
 #include "DeviceBar.hpp"
 #include "Workspace.hpp"
 #include "Player.hpp"
@@ -11,7 +12,7 @@
 
 class Gui : public mahi::gui::Application {
 public:
-    Gui();
+    Gui(const Application::Config config);
     void update() override;
     void positionWindows();
     const std::string& saveDir();

@@ -1,69 +1,58 @@
 <img src="https://raw.githubusercontent.com/mahilab/Syntacts/master/logo/logo_text.png" width="500">
 
-Syntacts is an audio-based, haptic rendering framework. The library makes generating tactile vibrations though audio devices as simple as possible, by:
+Syntacts is a haptic rendering framework for vibrotactile feedback. It eliminates the need for expensive haptic controllers or custom electronics by leveraging commercial-off-the-shelf audio interfaces. As a complete package, Syntacts provides the software and hardware needed to interface audio devices with low latency, synthesize complex waveforms, and amplify signals to appropriate levels. To learn more, please visit the official website:
 
-1) Exposing low level access to virtually any hardware and driver (notably ASIO for low latency performance).
-2) Providing easy-to-use classes and mechanisms to generate complex vibration waveforms and sequences.
-3) Allowing for cue spatialization of multi-channel tactile arrays.
-4) Providing bindings for your favorite languages, including Python and C#, as well as example integration with Unity Engine.
+## [www.syntacts.org](https://www.syntacts.org/)
 
-# Syntacts Quick Start
+# Quick Start
 
-### If you came for the GUI and/or Python/C#/Unity bindings...
-- Check the [Releases](https://github.com/mahilab/Syntacts/releases) page for the latest pre-compiled binaries. 
-- Run the GUI exectuable. On Windows, you may receive a "Windows protected your PC" screen. Click "More info", then "Run anyway".
-- Bindings:
-  - For **Python**, run `example.py`
-  - For **C#**, see the included `README.md`
-  - For **Unity**, open `Demo.unity`
+You can find in-depth [tutorials](https://www.syntacts.org/tutorials/) on the main website, but if you're in a hurry, follow these quick start guides:
 
-### If you came for the C++ version...
-1) Get the source code from the latest [Release](https://github.com/mahilab/Syntacts/releases) or by pulling `master`
-2) Build and install **Syntacts** for your system (see directions below)
-3) Use the [template](https://github.com/mahilab/Syntacts/tree/master/template) to make a new Syntacts project with CMake
+## Syntacts GUI
+- Get the latest [Release](https://github.com/mahilab/Syntacts/releases) and extract the files.
+- Run the GUI executable `syntacts_gui` in the top level directory. 
+- On Windows, you may receive a "Windows protected your PC" screen. Click "More info", then "Run anyway".
+- On macOS, the executable `syntacts_gui` may not run. Open a Terminal and run the following command in the directory of `syntacts_gui`. After this, you should be able to successfully run `syntacts_gui`.
 
-### Having issues?
-- Head over to the [Issues](https://github.com/mahilab/Syntacts/issues) page and tell us your problem.
-- If you get a `VCRUNTIME140.dll missing` or similar issue, first try installing the latest [MSVC redistributable](https://support.microsoft.com/en-us/help/2977003/the-latest-supported-visual-c-downloads)
+  ```shell
+  > sudo chmod 777 syntacts_gui
+  ```
 
-# Building Syntacts from C++ Source Code
+## C/C++ API
+- Get the source code by pulling the `master` branch on the GitHub repository.
+- Build and install **Syntacts** for your system by following the [tutorial](https://www.syntacts.org/tutorials/).
+- Use the [template](https://github.com/mahilab/Syntacts/tree/master/template) to make a new Syntacts project with CMake.
 
-## Requirements
+## C# API
+- Get the latest [Release](https://github.com/mahilab/Syntacts/releases) and extract the files.
+- Navigate to the `csharp` directory.
+- From the command line, build the Syntacts library and then run each example you want to try out:
+  ```shell
+  > cd csharp/Syntacts
+  > dotnet build
+  > cd ../examples/example_basic
+  > dotnet run
+  ```
+    
+## Unity 
+- Get the latest [Release](https://github.com/mahilab/Syntacts/releases) and extract the files.
+- Import `unity/syntacts.unitypackage` to your project.
+- Add the `SyntactsHub` component to a scene object.
+- Use the `session` member variable of `SyntactsHub` to play Syntacts Signals.
 
-- [git](https://git-scm.com/)
-- [CMake](https://cmake.org/)
-- C++17 Compiler (e.g. [MSVC](https://visualstudio.microsoft.com/vs/) or [Clang](https://clang.llvm.org/))
+OR
 
-## Building on Windows
+- Navigate to the `unity/SyntactsDemo/Assets/Demo` directory.
+- Open `Demo.unity`.
 
-Open PowerShell **as an administrator** in a directory of your choice and run the following commands:
+## Python API
+- Get the latest [Release](https://github.com/mahilab/Syntacts/releases) and extract the files.
+- Navigate to the `python` directory.
+- Run any of the `example.py` files:
+  ```shell
+  > python example_basic.py
+  ```
 
-```shell
-> git clone --recurse-submodules https://github.com/mahilab/Syntacts 
-> cd Syntacts
-> mkdir build
-> cd build
-> cmake .. -G "Visual Studio 16 2019" -A x64
-> cmake --build . --target install --config Release
-```
-
-This will build **Syntacts** in its entirety and then install it to your system (likely in `C:\Program Files\Syntacts` or `C:\Program Files (x86)\Syntacts`). 
-
->- Syntacts uses **git submodules**. Make sure you use the `--recurse-submodules` option when cloning, otherwise your compliation will fail due to missing libraries!
->- You may need to specify a different CMake generator with `-G` if you have a another version of Visual Studio installed (e.g. `cmake .. -G "Visual Studio 15 2017 Win64"`)
-
-## Building on macOS
-
-Open a Terminal in a directory of your choice and run the following commands:
-
-```shell
-> git clone --recurse-submodules https://github.com/mahilab/Syntacts 
-> cd Syntacts
-> mkdir build && cd build
-> cmake .. -DCMAKE_BUILD_TYPE="Release"
-> sudo cmake --build . --target install
-```
-
-This will build **Syntacts** in its entirety and then install it to your system (likely in `/user/local/...`). 
-
->- Check your macOS and Clang versions. Syntacts makes use of C++17 features, particularly std::filesystem. You may need to update macOS and/or Apple Clang (e.g. with the command `xcode-select --install`). You may also consider using a mainline version of [Clang](https://clang.llvm.org/). Syntacts has been tested on macOS Catalina with Apple Clang 11.0.0 (clang-1100.0.0.33.17).
+# Having issues?
+- Check the [Tutorials](https://www.syntacts.org/tutorials/) and [FAQ](https://www.syntacts.org/faq/) pages.
+- Head over to the [Issues](https://github.com/mahilab/Syntacts/issues) page and tell us about your problem.

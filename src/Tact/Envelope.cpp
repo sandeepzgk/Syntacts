@@ -19,7 +19,7 @@ double Envelope::length() const {
 
 KeyedEnvelope::KeyedEnvelope(double amplitude0)
 {
-   addKey(0.0f, amplitude0, Curves::Linear());
+   addKey(0.0f, amplitude0, Curves::Instant());
 }
 
 void KeyedEnvelope::addKey(double t, double amplitude, Curve curve) {
@@ -58,13 +58,13 @@ ADSR::ADSR(double attackTime, double decayTime, double sustainTime, double relea
     addKey(attackTime + decayTime + sustainTime + releaseTime, 0.0f, releaseCurve);
 }
 
-ExpDec::ExpDec(double _amplitude, double _decay) : amplitude(_amplitude), decay(_decay) { }
+ExponentialDecay::ExponentialDecay(double _amplitude, double _decay) : amplitude(_amplitude), decay(_decay) { }
 
-double ExpDec::sample(double t) const {
+double ExponentialDecay::sample(double t) const {
     return amplitude * std::exp(-decay * t);
 }
 
-double ExpDec::length() const {
+double ExponentialDecay::length() const {
     return - std::log(0.001 /amplitude) / decay;
 }
 

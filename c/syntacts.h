@@ -1,9 +1,18 @@
-#pragma once
+#ifndef SYNTACTS_C_H
+#define SYNTACTS_C_H
 
-#ifdef _WIN32
-#define EXPORT extern "C" __declspec(dllexport)
+#ifdef __cplusplus
+    #ifdef _WIN32
+        #define EXPORT  __declspec(dllexport)
+    #else
+        #define EXPORT 
+    #endif
 #else
-#define EXPORT extern "C"
+    #define EXPORT
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 typedef void* Handle;
@@ -16,6 +25,7 @@ EXPORT int Syntacts_versionMajor();
 EXPORT int Syntacts_versionMinor();
 EXPORT int Syntacts_versionPatch();
 EXPORT bool Syntacts_asioSupport();
+EXPORT int Syntacts_maxVoices();
 
 ///////////////////////////////////////////////////////////////////////////////
 // SESSION
@@ -47,6 +57,7 @@ EXPORT int Session_setVolume(Handle session, int channel, double volume);
 EXPORT double Session_getVolume(Handle session, int channel);
 EXPORT int Session_setPitch(Handle session, int channel, double pitch);
 EXPORT double Session_getPitch(Handle session, int channel);
+EXPORT double Session_getLevel(Handle session, int channel);
 EXPORT int Session_getChannelCount(Handle session);
 EXPORT double Session_getSampleRate(Handle session);
 EXPORT double Session_getCpuLoad(Handle session);
@@ -78,20 +89,22 @@ EXPORT int  Device_defaultSampleRate(Handle session, int d);
 // SPATIALIZER
 ///////////////////////////////////////////////////////////////////////////////
 
-struct Point {double x,y;};
-
 EXPORT Handle Spatializer_create(Handle session);
 EXPORT void Spatializer_delete(Handle spat);
 EXPORT bool Spatializer_valid(Handle spat);
 EXPORT void Spatializer_bind(Handle spat, Handle session);
 EXPORT void Spatializer_unbind(Handle spat);
-EXPORT void Spatializer_setPosition(Handle spat, int channel, Point p);
-EXPORT Point Spatializer_getPosition(Handle spat, int channel);
-EXPORT void Spatializer_setTarget(Handle spat, Point p);
-EXPORT Point Spatializer_getTarget(Handle spat);
+EXPORT void Spatializer_setPosition(Handle spat, int channel, double x, double y);
+EXPORT void Spatializer_getPosition(Handle spat, int channel, double* x, double* y);
+EXPORT void Spatializer_setTarget(Handle spat, double x, double y);
+EXPORT void Spatializer_getTarget(Handle spat, double* x, double* y);
 EXPORT void Spatializer_setRadius(Handle spat, double r);
 EXPORT double Spatializer_getRadius(Handle spat);
 EXPORT void Spatializer_setRollOff(Handle spat, int type); 
+EXPORT int Spatializer_getRollOff(Handle spat);
+EXPORT void Spatializer_setWrap(Handle spat, double x, double y);
+EXPORT void Spatializer_getWrap(Handle spat, double* x, double* y);
+
 EXPORT bool Spatializer_createGrid(Handle spat, int rows, int cols);
 EXPORT void Spatializer_clear(Handle spat);
 EXPORT void Spatializer_remove(Handle spat, int channel);
@@ -192,8 +205,10 @@ EXPORT Handle Reverser_create(Handle signal);
 EXPORT Handle Envelope_create(double duration, double amp);
 EXPORT Handle ASR_create(double a, double s, double r, double amp);
 EXPORT Handle ADSR_create(double a, double d, double s, double r, double amp1, double amp2);
+EXPORT Handle ExponentialDecay_create(double amplitude, double decay);
+EXPORT Handle SignalEnvelope_create(Handle signal, double duration, double amplitude);
 
-// TODO: KeyedEnvelope, Curves, SignalEnvelope 
+// TODO: KeyedEnvelope, ASR/ADSR curves
 
 ///////////////////////////////////////////////////////////////////////////////
 // OSCILLATOR
@@ -238,3 +253,9 @@ EXPORT Handle Library_importSignal(const char* filePath, int format, int sampleR
 EXPORT int Debug_sigMapSize();
 
 ///////////////////////////////////////////////////////////////////////////////
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#endif // SYNTACTS_C_H

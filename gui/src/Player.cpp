@@ -12,7 +12,7 @@ Player::Player(Gui& gui) : Widget(gui)
 
 void Player::update()
 {
-    ImGui::BeginFixed("Player", position, size);
+    ImGui::BeginFixed("Player", position, size, ImGuiWindowFlags_NoTitleBar);
     ImGui::BeginGroup(); // help group
     BeginPulsable(false,true);
     if (ImGui::Button(ICON_FA_PLAY, ImVec2(25, 0)))
@@ -91,7 +91,7 @@ void Player::updateChannels()
             bool playing = gui.device.session->isPlaying(i);
             if (playing)
                 ImGui::PushStyleColor(ImGuiCol_Button, Grays::Gray50);
-            auto label = str(i);
+            auto label = std::to_string(i);
             bool inSpat = gui.workspace.spatializer.spatializer.hasChannel(i);
             if (inSpat)
                 ImGui::PushStyleColor(ImGuiCol_Text, gui.theme.spatializerColor);
@@ -123,26 +123,42 @@ void Player::updateChannels()
 
             ImGui::BeginDisabled(inSpat);
             float xRem = ImGui::GetContentRegionAvail().x;
-            ImGui::PushItemWidth((xRem-4) * 0.5f);
+            float item_width = (xRem-4) * 0.5f;
+            float item_height = ImGui::GetFrameHeight();
+            ImGui::PushItemWidth(item_width);
             ImGui::SameLine();
             float v = (float)gui.device.session->getVolume(i);
-            if (ImGui::SliderFloat(str("##Volume", i).c_str(), &v, 0, 1, ""))
+            auto old_cpos = ImGui::GetCurrentWindow()->DC.CursorPos;
+            ImGui::PushID(i);
+            if (ImGui::SliderFloat("##Volume", &v, 0, 1, ""))
                 gui.device.session->setVolume(i, v);
+            ImGui::PopID();
+            auto new_cpos = ImGui::GetCurrentWindow()->DC.CursorPos;
             if (ImGui::IsItemClicked(1))
             {
                 v = v == 0.0f ? 1.0f : v == 1.0f ? 0.0f : v < 0.5f ? 0.0f : 1.0f;
                 gui.device.session->setVolume(i, v);
             }
+            float level = (float)gui.device.session->getLevel(i);
+            level = ImClamp(level, 0.0f, 1.0f);
+            float meter_width = level * (item_width - 4 - ImGui::GetStyle().GrabMinSize);
+            if (level > 0.01f) {
+                ImGui::GetCurrentWindow()->DC.CursorPos = old_cpos;
+                ImGui::GetWindowDrawList()->AddRectFilled(old_cpos + ImVec2(2,2), old_cpos + ImVec2(meter_width,item_height-2), IM_COL32(255,200,0,255), ImGui::GetStyle().GrabRounding);
+                ImGui::GetCurrentWindow()->DC.CursorPos = new_cpos;        
+            }
 
             ImGui::SameLine();
             float p = (float)gui.device.session->getPitch(i);
             p = std::log10(p);
-            if (ImGui::SliderFloat(str("##Pitch", i).c_str(), &p, -1, 1, ""))
+            ImGui::PushID(i);
+            if (ImGui::SliderFloat("##Ptich", &p, -1, 1, ""))
                 gui.device.session->setPitch(i, std::pow(10, p));
+            ImGui::PopID();
             if (ImGui::IsItemClicked(1))            
                 gui.device.session->setPitch(i, 1);
             ImGui::PopItemWidth();
-            ImGui::EndDisabled(inSpat);
+            ImGui::EndDisabled();
 
             ImGui::PopID();
         }

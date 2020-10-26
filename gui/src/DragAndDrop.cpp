@@ -64,7 +64,7 @@ void PaletteSource(PItem pItem)
         g_palettePayload = pItem;
         SetPaletteHeld(true);
         ImGui::SetDragDropPayload("DND_PITEM", &g_palettePayload, sizeof(PItem));
-        ImGui::Text(palletteString(pItem).c_str());
+        ImGui::Text(paletteName(pItem).c_str());
         ImGui::EndDragDropSource();
     }
 }
@@ -118,8 +118,10 @@ bool SignalTarget()
     bool ret = false;
     if (ImGui::BeginDragDropTarget())
     {
-        if (const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("DND_LITEM"))
+        const ImGuiPayload *payload = ImGui::AcceptDragDropPayload("DND_LITEM");
+        if (payload != NULL && g_signalHeld)
         {
+            g_signalHeld = false;
             ret = true;
         }
         ImGui::EndDragDropTarget();
